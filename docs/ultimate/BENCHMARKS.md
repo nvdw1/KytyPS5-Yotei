@@ -35,6 +35,24 @@ scalability ladder to level 13 here. The 15 fps target needs the ladder force (a
 breakpoint, see LADDER-HUNT.md) plus the fork's own future CPU-side work, or a stronger CPU; on the fork's
 hardware-scaled expectation this PC's open world is ~10-15 fps and towns less.
 
+## System-level findings (2026-11-14)
+
+- **Resizable BAR (ASRock "Clever Access Memory", enabled in BIOS)**: BAR1 grew to 16 GB and the BDA
+  fallback's pinned host memory dropped from **4,832 MiB to 512 MiB** per run — about 4.3 GB of the 16 GB
+  RAM released from commit. Real relief for this 16 GB machine; the measured in-game fps in the test scene
+  stayed in the same band (median 173.1 ms, with 13.6% of frames in the 15-fps tier — scenes drift between
+  runs, so treat ±10-15% medians as noise). The BAR-read probe still measured slow (28 MB/s — PCIe
+  write-combined read latency, not aperture size), so downloads keep the GPU-copy path as designed.
+- **RAM**: two DDR4-2666 CL19 sticks (TeamGroup UD4-2666), no XMP profile above 2666. BIOS timing tuning
+  (tightening tCL at 2666, or 2933 with relaxed timings) is the one free CPU-side lever left; expected
+  5-15% on this CPU-bound workload. Motherboard ASRock H410M-HVS.
+- **Spin budget**: `KYTY_GPU_SPIN_US=50` (vs the default 2,000) measured **worse** (189.7 ms median):
+  the pipeline's spin handoffs are load-bearing and `_mm_pause` is SMT-friendly; kernel-wait fallbacks
+  cost more than the saved cycles. The full-thread sampler (`KYTY_TRACE_PERF_SAMPLE=all`) shows ~90% of
+  samples in spin/clock machinery, but that overstates real core cost — the pause instruction yields the
+  SMT sibling's resources. Documented negative result; leave the default.
+- **Full-720p pipeline** (720p internal + 1280x720 window): 186.5 ms median — no gain over 1080p output.
+
 ## Automated gameplay entry (the test pad script)
 
 `KYTY_TEST_PAD_SCRIPT` (the fork's unattended-run tool, controller.cpp): Cross = button mask 0x4000. The
