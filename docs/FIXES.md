@@ -3,6 +3,36 @@
 What was broken, why, how it was fixed and what the fix costs. Newest first. Each entry names the commit that holds the
 fix, so the code and its comment can be read next to it.
 
+## Deactivating a direct range from inside a deferred callback ended in a fatal (2026-11-13, this build)
+
+**Symptom.** Twice in play sessions run with `KYTY_LIVE_AB=KYTY_PERF_DIRECT_RANGES` (after ~6,300 frames each, in a
+heavy cinematic scene, ~300 draws per frame) the emulator stopped with
+`Error: condition (g_deferred_callback_scheduler == this) is true in commandScheduler.cpp:421`. The stacks (fatal
+frames resolved against the build map) both ran
+`… → BufferCache::FindBuffer → BufferCache::DeactivateDirect → CommandScheduler::Finish → PopPendingOperations →
+WaitPriorityOperations`, the second one with a second, nested `PopPendingOperations → DeactivateDirect` level between
+the two.
+
+**Cause.** Both sessions measured the direct-range switch with live A/B, which flips `KYTY_PERF_DIRECT_RANGES` every
+20 s. The flip was observed first by a `FindBuffer` that ran **inside a deferred callback** (a fault handler's or a
+fill's lookup, reached through `PopPendingOperations`' `RunOperation`): the mode-0 path then deactivated every range —
+and `DeactivateDirect`'s `CommandScheduler::Finish` waits on the priority-operation queue from within the callback,
+exactly what `WaitPriorityOperations`' `EXIT_IF` forbids (re-entry), and submits the open command buffer the caller
+keeps recording into. The same applies to the growth branch of `DirectBufferFor`. Normal play does not toggle the
+switch (the mode is constant), so the fatal needed the measurement harness; the harness is the project's own and must
+not crash the game.
+
+**Fix.** Both entry points in `src/graphics/host_gpu/renderer/cache/bufferCache.cpp` refuse while a deferred callback
+is running on the thread (`m_scheduler.InDeferredOperation()`): the mode-0 switch leaves the ranges active and
+`m_direct_mode_seen` behind (the next call outside a callback ends them), and the growth branch falls through to the
+ordinary path, which already stops at a direct buffer without joining it (`ResolveOverlaps`). The log names the
+refused operations (8 first lines each). Deactivating from inside a callback is not offered as an alternative on
+purpose: its submit would leave the caller recording into a submitted buffer.
+
+**Cost.** None on the normal path: one thread-local comparison per mode switch or growth attempt (a few per
+session). A deferred callback that flips the switch keeps the ranges for a few calls longer than the off phase
+intended; the flip takes effect at the next call outside a callback.
+
 ## GPU pipeline threads on whole cores of any processor (2026-11-02, `cfb35beab`)
 
 **Symptom.** None visible on the development PC. The emulator pins its four GPU pipeline threads (execution, command

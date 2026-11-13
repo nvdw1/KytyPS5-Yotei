@@ -1898,16 +1898,44 @@ BufferId BufferCache::DirectBufferFor(uint64_t vaddr, uint64_t size) {
 	if (mode != m_direct_mode_seen) {
 		const DirectChange change(*this); // (W2.2)
 		// Live A/B: off ends the active ranges (their memory is tracked again from guest memory).
-		if (mode == 0) {
-			for (auto& range: m_direct_ranges) DeactivateDirect(range);
+		if (mode == 0 && m_scheduler.InDeferredOperation()) {
+			// The switch was observed first from inside a deferred callback (13.11, twice: the flip landed in a
+			// fault handler's lookup). Deactivating here waits on the scheduler's priority queue from within the
+			// callback — the re-entry WaitPriorityOperations forbids — and submits the open command buffer the
+			// caller keeps recording into. Leave the ranges active: m_direct_mode_seen stays behind, so the
+			// next call outside a callback ends them.
+			static std::atomic_uint logged {0};
+			if (logged.fetch_add(1) < 8u) {
+				std::fprintf(stderr, "PERF_DIRECT_RANGES off deferred: reached from a deferred callback\n");
+			}
+		} else {
+			if (mode == 0) {
+				for (auto& range: m_direct_ranges) DeactivateDirect(range);
+			}
+			m_direct_mode_seen = mode;
 		}
-		m_direct_mode_seen = mode;
 	}
 	if (mode == 0 || m_direct_ranges.empty() || size == 0) return {};
 	const uint64_t end = vaddr + size;
 	for (auto& range: m_direct_ranges) {
 		if (range.refused || end <= range.start || vaddr >= range.end) continue;
 		if (vaddr < range.start || end > range.end) {
+			if (m_scheduler.InDeferredOperation()) {
+				// Growth from inside a deferred callback (13.11: a fault handler's FindBuffer reached here) would
+				// deactivate the range, whose Finish waits on the scheduler's priority queue from within the
+				// callback — WaitPriorityOperations forbids that re-entry — and submits the open command buffer
+				// the caller keeps recording into. Leave the range as it is: the ordinary path stops at a direct
+				// buffer (ResolveOverlaps) and serves the rest of the request.
+				static std::atomic_uint logged {0};
+				if (logged.fetch_add(1) < 8u) {
+					std::fprintf(stderr,
+					             "PERF_DIRECT_RANGES grow refused from a deferred callback (request 0x%llx+0x%llx over "
+					             "0x%llx-0x%llx)\n",
+					             static_cast<unsigned long long>(vaddr), static_cast<unsigned long long>(size),
+					             static_cast<unsigned long long>(range.start), static_cast<unsigned long long>(range.end));
+				}
+				continue;
+			}
 			const DirectChange change(*this); // (W2.2)
 			// A request reaching past the range: the range grows to hold it (a direct buffer is never joined).
 			DeactivateDirect(range, false);
