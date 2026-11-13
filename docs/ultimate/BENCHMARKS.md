@@ -53,6 +53,19 @@ hardware-scaled expectation this PC's open world is ~10-15 fps and towns less.
   SMT sibling's resources. Documented negative result; leave the default.
 - **Full-720p pipeline** (720p internal + 1280x720 window): 186.5 ms median — no gain over 1080p output.
 
+- **Full-720p pipeline** (720p internal + 1280x720 window): 186.5 ms median — no gain over 1080p output.
+- **Process priority High (set externally mid-run)**: 152.9 vs 153.1 ms median at Normal — no change; the
+  emulator already receives the CPU it asks for. Documented negative result.
+- **The productive-code profile** (the =all samples minus the spin/clock clusters, 5% of samples): the top
+  productive addresses are `TrackingSpinLock::lock` (contention, 3 clusters — already backoff-tuned by the
+  fork), `MaterializeResources` (already ahead-materialized on helper threads through the SRT tape), and
+  `FastVerifyLoggedReads` (already page-cached, run-coalesced and batch-compared). This matches the fork's
+  own ceiling data: even fully removing the per-draw preparation was worth +8.8%, and each separate path
+  less. The frame is the CPU-side emulation itself; on a 6-core Comet Lake the ceiling sits where measured.
+- **CPU power limits (untested remotely, recommended)**: the i5-10400F at PL1=65 W sustains ~3.9 GHz
+  all-core under this all-core load; raising PL1/PL2 in the BIOS (the board allows it) to hold ~4.1-4.2 GHz
+  is worth a few percent on this workload.
+
 ## Automated gameplay entry (the test pad script)
 
 `KYTY_TEST_PAD_SCRIPT` (the fork's unattended-run tool, controller.cpp): Cross = button mask 0x4000. The
