@@ -17,6 +17,32 @@
      "on": "b90f00000090"
     }
    ]
+  },
+  {
+   "key": "render720",
+   "name": "Render 720p (the 1080p table entry rewritten to 1280x720; needs Render at 1080p on)",
+   "title": "Render at 720p",
+   "gain": "+2-5% fps (measured 13.11: gameplay frame-time median 152.6 vs 159.3 ms)",
+   "description": "Rewrites the game's dynamic-resolution table entry 15 (1920x1080, rva 0x1af8208) to 1280x720, so the Render at 1080p lock renders at 720p and FSR3 upscales. The table has no entries below 1080p, so this is the only way below it. Softer image; small gain: the frame is CPU-side-bound, not pixel-bound.",
+   "default": false,
+   "memory": [
+    {
+     "offset": "0x01bf8208",
+     "off": "8007000038040000",
+     "on": "00050000d0020000"
+    }
+   ]
+  },
+  {
+   "key": "autoCross",
+   "name": "Auto-press Cross (enters the game from the main menu, then presses X through the first minutes)",
+   "title": "Auto-press Cross",
+   "gain": "unattended runs",
+   "description": "Uses the fork's test pad script (KYTY_TEST_PAD_SCRIPT): presses Cross in the main menu and then roughly every 1000 frames up to frame 12,000, so the intro prompts are answered and gameplay starts without input. Presses past them are harmless.",
+   "default": false,
+   "env": {
+    "KYTY_TEST_PAD_SCRIPT": "500-520:BTN=4000|700-720:BTN=4000|900-920:BTN=4000|3000-3020:BTN=4000|4000-4020:BTN=4000|5000-5020:BTN=4000|6000-6020:BTN=4000|7000-7020:BTN=4000|8000-8020:BTN=4000|9000-9020:BTN=4000|10000-10020:BTN=4000|11000-11020:BTN=4000|12000-12020:BTN=4000"
+   }
   }
  ]
 }

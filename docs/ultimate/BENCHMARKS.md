@@ -15,6 +15,34 @@ fabricated; scene names are as accurate as the logs allow.
 - Scene-to-scene comparisons across separate runs are **not** used for fps claims (the fork's own rule:
   single test places, < 2% is noise). Cross-run numbers below are recorded as context only.
 
+## In-game baseline and resolution experiments (2026-11-13, evening)
+
+Correction to the first pass: the 27-30 fps scenes above are the menus and loading. **Real gameplay** (entered
+through the fork's test pad script: Cross in the main menu, then X through the intro prompts) measures:
+
+- **baseline (Render-1080p mod, as shipped): frame-time median 159.3 ms = 6.3 fps** (781 in-game frames,
+  mean 162.0 ms, p95 186.6 ms — zero frames in the 15-fps tier).
+- **dynamic resolution unlocked (Render-1080p off): 4.8 fps** — worse. The game's GPU timer reads host GPU
+  busy time and keeps a high internal size on its own (the emulator's GPU is not saturated at 46-70%);
+  removing the lock only lets cutscenes go up to 4K.
+- **Render-720p (the table-entry rewrite, new mod): 6.6 fps (median 152.6 ms, +2-5%)** — kept as an
+  optional mod (`render720` in the 2.002 catalog), not a default: the frame is CPU-side-bound, not
+  pixel-bound.
+
+Reading: in gameplay the frame is dominated by the emulator's CPU-side work (the fork's own #1 open lead,
+"the execution thread's per-draw work"), not by pixels or draw count — the game already self-manages its
+scalability ladder to level 13 here. The 15 fps target needs the ladder force (a setter found by a data
+breakpoint, see LADDER-HUNT.md) plus the fork's own future CPU-side work, or a stronger CPU; on the fork's
+hardware-scaled expectation this PC's open world is ~10-15 fps and towns less.
+
+## Automated gameplay entry (the test pad script)
+
+`KYTY_TEST_PAD_SCRIPT` (the fork's unattended-run tool, controller.cpp): Cross = button mask 0x4000. The
+shipped automation (now a catalog mod `autoCross`, and enabled in the player's patch plan as an env
+entry): presses Cross at frames 500-920 (the main menu), then every 1,000 frames up to 12,000, which
+covers the game's "press X" prompts about five minutes in; extra presses are harmless. Verified:
+the game reaches gameplay unattended in ~2.5-5 minutes.
+
 ## Baseline (the fork as shipped, v0.1.6 + the 2026-11-13 fix, this PC)
 
 Measured 2026-11-13, gameplay area shortly after a new game's start (the intro world; ~40-65 draws/frame,
