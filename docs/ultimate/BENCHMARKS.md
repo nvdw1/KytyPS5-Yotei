@@ -66,6 +66,24 @@ hardware-scaled expectation this PC's open world is ~10-15 fps and towns less.
   all-core under this all-core load; raising PL1/PL2 in the BIOS (the board allows it) to hold ~4.1-4.2 GHz
   is worth a few percent on this workload.
 
+## Upstream port attempt (2026-11-14)
+
+The upstream KytyPS5 main received 73 commits after this fork's last rebase (2026-11-07), including the
+kernel-memory performance work (lock-free guest page table, split memory locking, region-lock-free dirty
+bit queries) — aimed at the same areas this machine's profile flagged. Findings:
+
+- **The fork is ahead of upstream in the graphics hot paths**: upstream's TrackingSpinLock TTAS
+  optimization (b9cb08d3, from the cp2077 fork) is a subset of this fork's version (which adds the tuned
+  backoff and the tracking stats on top of the same idea). The cherry-pick is a no-op here.
+- **The kernel-memory port needs the whole upstream refactor series**: 19 commits, of which the robustness
+  series ("exit on … failures instead of rolling back", PoolReserved ranges) restructures the unmap flow
+  that this fork's BDA fallback and RingBytesAllDead heuristics extend. The conflict at `UnmapMemoryOwner`
+  is semantic (two diverged implementations of the same subsystem), not mechanical. The lock-free page
+  table and split locks build on that refactored flow.
+- The attempt is preserved as the `perf-upstream` branch (3 kernel commits applied, the chain stopped at
+  `UnmapMemoryOwner`). Completing it is a subsystem port with memory-corruption risk and an unquantified,
+  profile-bounded prize — a task for the fork's own next rebase, which the upstream work will ride in on.
+
 ## Automated gameplay entry (the test pad script)
 
 `KYTY_TEST_PAD_SCRIPT` (the fork's unattended-run tool, controller.cpp): Cross = button mask 0x4000. The
